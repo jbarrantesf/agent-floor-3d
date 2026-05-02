@@ -22,8 +22,30 @@ Everything you need:
 
 ## 🔑 SUPABASE CREDENTIALS (SECURE)
 
-Credentials are now in `.env` file (never committed to git):
+All credentials are now in `.env` file (never committed to git):
 
+### Project URL
+```
+VITE_SUPABASE_URL=https://aybxrgvvwpknkoqrevqa.supabase.co
+SUPABASE_URL=https://aybxrgvvwpknkoqrevqa.supabase.co
+```
+
+### JWT Keys (for Authentication)
+```
+# ANON_KEY - Public client auth (read-only by default)
+VITE_SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_ANON_KEY=eyJhbG...
+
+# SERVICE_ROLE_KEY - Server-side operations (full permissions)
+SUPABASE_SERVICE_ROLE_KEY=eyJhbG...
+```
+
+### Access Token (for CLI/API)
+```
+SUPABASE_ACCESS_TOKEN=sbp_a1...
+```
+
+### PostgreSQL Direct Connection (for Phase 1 Deployment)
 ```
 SUPABASE_DB_HOST=db.aybxrgvvwpknkoqrevqa.supabase.co
 SUPABASE_DB_PORT=5432
@@ -32,13 +54,33 @@ SUPABASE_DB_PASSWORD=***
 SUPABASE_DB_NAME=postgres
 ```
 
-**Load in your code:**
+### Summary
+| Key | Use Case | Permissions |
+|-----|----------|-------------|
+| **ANON_KEY** | Client-side (browser) | Read-only (RLS enforced) |
+| **SERVICE_ROLE_KEY** | Server-side (backend) | Full access (use carefully) |
+| **ACCESS_TOKEN** | CLI / Management API | Personal access |
+| **DB_PASSWORD** | Direct PostgreSQL | postgres user access |
 
-### Option A: Node.js (Recommended)
+### Load in your code:
+
+**Option A: Node.js with Supabase Client**
 ```javascript
 require('dotenv').config();
 
-const psql = require('psycopg2'); // or use Supabase client
+const { createClient } = require('@supabase/supabase-js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY  // Full access for server
+);
+```
+
+**Option B: Node.js with Direct PostgreSQL Connection**
+```javascript
+require('dotenv').config();
+
+const psql = require('psycopg2');
 const conn = {
   host: process.env.SUPABASE_DB_HOST,
   port: process.env.SUPABASE_DB_PORT,
@@ -46,6 +88,13 @@ const conn = {
   password: process.env.SUPABASE_DB_PASSWORD,
   database: process.env.SUPABASE_DB_NAME
 };
+```
+
+**Option C: Environment Variables for CLI**
+```bash
+# For supabase-cli
+export SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN
+export SUPABASE_PROJECT_REF=aybxrgvvwpknkoqrevqa
 ```
 
 ### Option B: Supabase CLI
