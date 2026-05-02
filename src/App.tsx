@@ -143,9 +143,9 @@ export default function App() {
       </div>
 
       {/* MAIN LAYOUT: 3D Floor + Right Sidebar */}
-      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', gap: '1rem', padding: '1rem', overflow: 'hidden', height: '100%' }}>
         {/* 3D FLOOR (70% width) */}
-        <div className="flex-1 flex flex-col gap-4">
+        <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
           <Agent3DFloor 
             agents={agentStates}
             costs={costs}
