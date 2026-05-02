@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { Agent3DFloor } from './Agent3DFloor'
+import { CostAnalytics } from './CostAnalytics'
 
 // ==================== SUPABASE CLIENT ====================
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -16,6 +17,7 @@ export default function App() {
   const [costs, setCosts] = useState({ hermes: 0.0042, orbit: 0.0018 })
   const [wsConnected, setWsConnected] = useState(false)
   const [supabaseConnected, setSupabaseConnected] = useState(false)
+  const [costAnalyticsOpen, setCostAnalyticsOpen] = useState(false)
   const [agentStates, setAgentStates] = useState({
     hermes: 'idle',
     orbit: 'idle',
@@ -253,6 +255,12 @@ export default function App() {
               >
                 📤 Handoff
               </button>
+              <button
+                onClick={() => setCostAnalyticsOpen(true)}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition\"
+              >
+                💰 Cost Analytics
+              </button>
             </div>
           </div>
 
@@ -291,6 +299,8 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <CostAnalytics isOpen={costAnalyticsOpen} onClose={() => setCostAnalyticsOpen(false)} />
     </div>
   )
 }

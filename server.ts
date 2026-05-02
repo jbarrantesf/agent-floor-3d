@@ -302,6 +302,90 @@ async function subscribeToRealtimeEvents() {
   }
 }
 
+// Cost analytics endpoints
+app.get('/api/costs/breakdown', async (req, res) => {
+  try {
+    const { data: events, error } = await supabase
+      .from('agent_events')
+      .select('agent, cost, tokens, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1000)
+
+    if (error) throw error
+
+    const breakdown: Record<string, any> = {}
+
+    events?.forEach((event: any) => {
+      if (!breakdown[event.agent]) {
+        breakdown[event.agent] = {
+          agent: event.agent,
+          totalCost: 0,
+          tokenCount: 0,
+          requestCount: 0,
+          avgCostPerRequest: 0,
+          lastUpdate: event.created_at
+        }
+      }
+      breakdown[event.agent].totalCost += event.cost || 0
+      breakdown[event.agent].tokenCount += event.tokens || 0
+      breakdown[event.agent].requestCount += 1
+      breakdown[event.agent].lastUpdate = event.created_at
+    })
+
+    Object.values(breakdown).forEach((agent: any) => {
+      agent.avgCostPerRequest = agent.requestCount > 0 ? agent.totalCost / agent.requestCount : 0
+    })
+
+    res.json(Object.values(breakdown))
+  } catch (err: any) {
+    console.error('Cost breakdown error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/costs/history', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours as string) || 24
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+
+    const { data: events, error } = await supabase
+      .from('agent_events')
+      .select('agent, cost, created_at')
+      .gte('created_at', since)
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+
+    const history = events?.map((event: any) => ({
+      timestamp: new Date(event.created_at).toLocaleTimeString(),
+      agent: event.agent,
+      cost: event.cost || 0
+    })) || []
+
+    res.json(history)
+  } catch (err: any) {
+    console.error('Cost history error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/costs/total', async (req, res) => {
+  try {
+    const { data: events, error } = await supabase
+      .from('agent_events')
+      .select('cost')
+
+    if (error) throw error
+
+    const totalCost = events?.reduce((sum: number, e: any) => sum + (e.cost || 0), 0) || 0
+
+    res.json({ totalCost })
+  } catch (err: any) {
+    console.error('Total cost error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 subscribeToRealtimeEvents()
 
 // Start server
