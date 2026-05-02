@@ -20,7 +20,12 @@ export default function App() {
   const [supabaseConnected, setSupabaseConnected] = useState(false)
   
   console.log('🔍 App.tsx render — costAnalyticsOpen:', costAnalyticsOpen)
-  const [agentStates, setAgentStates] = useState({
+  const [agentStates, setAgentStates] = useState<{
+    hermes: 'idle' | 'running' | 'error'
+    orbit: 'idle' | 'running' | 'error'
+    subagent1: 'idle' | 'running' | 'error'
+    subagent2: 'idle' | 'running' | 'error'
+  }>({
     hermes: 'idle',
     orbit: 'idle',
     subagent1: 'idle',
@@ -90,21 +95,8 @@ export default function App() {
     }
   }, [])
 
-  // ==================== POLLING FOR STATE UPDATES ====================
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/health')
-        const data = await response.json()
-        setCosts(data.costs)
-        setAgentStates(data.agents)
-      } catch (err) {
-        console.warn('Polling error:', err)
-      }
-    }, 2000)
-
-    return () => clearInterval(pollInterval)
-  }, [])
+  // NOTE: Polling removed. WebSocket + Supabase realtime are the source of truth.
+  // This eliminates redundant requests and keeps state in sync via push model.
 
   // ==================== SUPABASE REALTIME SUBSCRIPTIONS ====================
   useEffect(() => {
@@ -150,7 +142,7 @@ export default function App() {
             agents={agentStates}
             costs={costs}
             handoffs={[
-              { from: 'hermes', to: 'orbit', active: agentStates.hermes === 'executing' && agentStates.orbit === 'executing' }
+              { from: 'hermes', to: 'orbit', active: agentStates.hermes === 'running' && agentStates.orbit === 'running' }
             ]}
           />
           
@@ -188,10 +180,11 @@ export default function App() {
               {Object.entries(agentStates).map(([agent, state]) => (
                 <div key={agent} className="flex items-center justify-between p-2 bg-black/50 rounded">
                   <p className="text-xs font-mono text-gray-300 capitalize">{agent}</p>
-                  <span className={`px-2 py-1 text-xs font-bold rounded ${
-                    state === 'executing' ? 'bg-blue-500/30 text-blue-300' :
+                  <span className={`px-2 py-1 text-xs font-bold rounded border border-slate-700 ${
+                    state === 'running' ? 'bg-green-500/30 text-green-300' :
                     state === 'error' ? 'bg-red-500/30 text-red-300' :
-                    'bg-yellow-500/30 text-yellow-300'
+                    state === 'idle' ? 'bg-gray-500/30 text-gray-300' :
+                    'bg-blue-500/30 text-blue-300'
                   }`}>
                     {String(state).toUpperCase()}
                   </span>
@@ -206,25 +199,33 @@ export default function App() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={async () => {
-                  await fetch('http://localhost:3001/api/agents/state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({...agentStates, hermes: 'executing'})
-                  })
+                  try {
+                    await fetch('http://localhost:3001/api/agents/state', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({...agentStates, hermes: 'running'})
+                    })
+                  } catch (err) {
+                    console.error('Failed to update Hermes state:', err)
+                  }
                 }}
-                className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-bold transition"
+                className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-bold transition disabled:opacity-50"
               >
                 ▶️ Hermes
               </button>
               <button
                 onClick={async () => {
-                  await fetch('http://localhost:3001/api/agents/state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({...agentStates, orbit: 'executing'})
-                  })
+                  try {
+                    await fetch('http://localhost:3001/api/agents/state', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({...agentStates, orbit: 'running'})
+                    })
+                  } catch (err) {
+                    console.error('Failed to update ORBIT state:', err)
+                  }
                 }}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition"
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition disabled:opacity-50"
               >
                 ▶️ ORBIT
               </button>
@@ -242,18 +243,22 @@ export default function App() {
               </button>
               <button
                 onClick={async () => {
-                  await fetch('http://localhost:3001/api/handoffs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      from: 'hermes',
-                      to: 'orbit',
-                      taskId: `task-${Date.now()}`,
-                      metadata: { type: 'data_transfer', priority: 'high' }
+                  try {
+                    await fetch('http://localhost:3001/api/handoffs', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        from_agent: 'hermes',
+                        to_agent: 'orbit',
+                        task: { id: `task-${Date.now()}`, type: 'data_transfer', priority: 'high' },
+                        status: 'pending'
+                      })
                     })
-                  })
+                  } catch (err) {
+                    console.error('Failed to create handoff:', err)
+                  }
                 }}
-                className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-xs font-bold transition"
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-xs font-bold transition disabled:opacity-50"
               >
                 📤 Handoff
               </button>

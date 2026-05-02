@@ -1,58 +1,98 @@
-import express from 'express'
-import { WebSocketServer } from 'ws'
-import { createServer } from 'http'
-import { createClient } from '@supabase/supabase-js'
+import express, { Request, Response, NextFunction } from 'express'
+import { WebSocketServer, WebSocket } from 'ws'
+import { createServer, Server as HttpServer } from 'http'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
 
 dotenv.config()
 
-const app = express()
-const server = createServer(app)
-const wss = new WebSocketServer({ server, path: '/ws' })
+// ============ TYPES ============
+interface AgentState {
+  [agent: string]: 'idle' | 'running' | 'error'
+}
 
-const WS_PORT = process.env.WS_PORT || 3001
+interface CostData {
+  [agent: string]: number
+}
+
+interface Handoff {
+  from_agent: string
+  to_agent: string
+  task: any
+  status: 'pending' | 'accepted' | 'completed' | 'failed'
+}
+
+interface BroadcastMessage {
+  type: string
+  timestamp: string
+  [key: string]: any
+}
+
+// ============ CONFIG ============
+const WS_PORT = parseInt(process.env.WS_PORT || '3001')
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://aybxrgvvwpknkoqrevqa.supabase.co'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const NODE_ENV = process.env.NODE_ENV || 'development'
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['localhost:3000', 'localhost:5173']
 
-console.log('🔑 Credentials check:')
-console.log(`   Supabase URL: ${SUPABASE_URL ? '✅' : '❌'}`)
-console.log(`   Service Role Key: ${SUPABASE_SERVICE_ROLE_KEY ? '✅' : '❌'}\n`)
+console.log(`🔑 Credentials check (${NODE_ENV}):`, SUPABASE_URL ? '✅' : '❌')
 
-// Supabase client
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false }
+// ============ APP SETUP ============
+const app = express()
+const server: HttpServer = createServer(app)
+const wss = new WebSocketServer({ server, path: '/ws' })
+
+const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+  realtime: { eventsPerSecond: 10 }
 })
 
-// Simulated state
-let agentState = {
+// ============ STATE MANAGEMENT ============
+let agentState: AgentState = {
   hermes: 'idle',
   orbit: 'idle',
   subagent1: 'idle',
   subagent2: 'idle'
 }
 
-let costData = {
+let costData: CostData = {
   hermes: 0.0042,
   orbit: 0.0018
 }
 
-// Middleware
-app.use(express.json())
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+// WebSocket client tracking
+const wsClients = new Set<WebSocket>()
+
+// ============ MIDDLEWARE ============
+app.use(express.json({ limit: '10kb' }))
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.get('origin')?.split(':')[0] || 'unknown'
+  const isAllowed = ALLOWED_ORIGINS.some(allowed => req.get('origin')?.includes(allowed))
+  
+  if (isAllowed || NODE_ENV === 'development') {
+    res.header('Access-Control-Allow-Origin', req.get('origin') || '*')
+  }
+  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.header('X-Content-Type-Options', 'nosniff')
+  
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200)
+    res.sendStatus(204)
   } else {
     next()
   }
 })
 
-// WebSocket upgrade handling with proper CORS headers
+// Error handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[ERROR]', err.message)
+  res.status(err.status || 500).json({ error: 'Internal Server Error' })
+})
+
+// ============ WEBSOCKET HANDLERS ============
 server.on('upgrade', (req, socket, head) => {
   if (req.url === '/ws') {
-    wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
       wss.emit('connection', ws, req)
     })
   } else {
@@ -60,22 +100,64 @@ server.on('upgrade', (req, socket, head) => {
   }
 })
 
-// API Routes
-app.get('/api/health', (req, res) => {
-  res.json({
-    ok: true,
-    timestamp: new Date().toISOString(),
+wss.on('connection', (ws: WebSocket) => {
+  wsClients.add(ws)
+  console.log(`[WS] Client connected (${wsClients.size} total)`)
+  
+  // Send initial state
+  ws.send(JSON.stringify({
+    type: 'initial-state',
     agents: agentState,
-    costs: costData
+    costs: costData,
+    timestamp: new Date().toISOString()
+  }))
+  
+  ws.on('message', handleWsMessage)
+  ws.on('error', (err: Error) => console.error('[WS] Error:', err.message))
+  ws.on('close', () => {
+    wsClients.delete(ws)
+    console.log(`[WS] Client disconnected (${wsClients.size} remaining)`)
   })
 })
 
-app.get('/api/costs', (req, res) => {
+function handleWsMessage(data: Buffer | string) {
+  try {
+    const msg = JSON.parse(data.toString())
+    if (msg.type === 'agent-state-update') {
+      agentState = { ...agentState, ...msg.payload }
+      broadcast({
+        type: 'agent-state',
+        payload: agentState,
+        timestamp: new Date().toISOString()
+      })
+    }
+  } catch (err) {
+    console.error('[WS] Parse error:', err)
+  }
+}
+
+// ============ API ROUTES ============
+app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    version: '0.2.0',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    agents: agentState,
+    costs: costData,
+    wsClients: wsClients.size
+  })
+})
+
+app.get('/api/costs', (req: Request, res: Response) => {
   res.json(costData)
 })
 
-app.post('/api/costs/update', (req, res) => {
-  costData = req.body
+app.post('/api/costs/update', (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body' })
+  }
+  costData = req.body as CostData
   broadcast({
     type: 'costs',
     payload: costData,
@@ -84,12 +166,15 @@ app.post('/api/costs/update', (req, res) => {
   res.json({ ok: true })
 })
 
-app.get('/api/agents', (req, res) => {
+app.get('/api/agents', (req: Request, res: Response) => {
   res.json(agentState)
 })
 
-app.post('/api/agents/state', (req, res) => {
-  agentState = req.body
+app.post('/api/agents/state', (req: Request, res: Response) => {
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Invalid request body' })
+  }
+  agentState = { ...agentState, ...req.body } as AgentState
   broadcast({
     type: 'agent-state',
     payload: agentState,
@@ -98,10 +183,15 @@ app.post('/api/agents/state', (req, res) => {
   res.json({ ok: true })
 })
 
-app.post('/api/handoffs', async (req, res) => {
+app.post('/api/handoffs', async (req: Request, res: Response) => {
   const { from_agent, to_agent, task, status } = req.body
-  const startTime = Date.now()
   
+  // Validation
+  if (!from_agent || !to_agent || !task) {
+    return res.status(400).json({ error: 'Missing required fields' })
+  }
+  
+  const startTime = Date.now()
   try {
     const { data, error } = await supabase
       .from('agent_handoffs')
@@ -116,10 +206,10 @@ app.post('/api/handoffs', async (req, res) => {
       ])
       .select()
     
-    if (error) throw error
+    if (error) throw new Error(error.message)
     
     const duration = Date.now() - startTime
-    console.log(`✅ Handoff created in ${duration}ms`)
+    console.log(`[HANDOFF] ${from_agent} → ${to_agent} (${duration}ms)`)
     
     broadcast({
       type: 'handoff',
@@ -133,13 +223,16 @@ app.post('/api/handoffs', async (req, res) => {
     
     res.json({ ok: true, data: data?.[0], duration })
   } catch (err: any) {
-    console.error('❌ Handoff error:', err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Handoff:', err.message)
+    res.status(500).json({ error: 'Handoff failed' })
   }
 })
 
-app.get('/api/state/:agent', async (req, res) => {
+app.get('/api/state/:agent', async (req: Request, res: Response) => {
   const { agent } = req.params
+  if (!agent) {
+    return res.status(400).json({ error: 'Agent required' })
+  }
   
   try {
     const { data, error } = await supabase
@@ -149,15 +242,19 @@ app.get('/api/state/:agent', async (req, res) => {
       .single()
     
     if (error && error.code !== 'PGRST116') throw error
-    
     res.json(data || null)
   } catch (err: any) {
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Get state:', err.message)
+    res.status(500).json({ error: 'Failed to get state' })
   }
 })
 
-app.post('/api/events', async (req, res) => {
+app.post('/api/events', async (req: Request, res: Response) => {
   const { agent, event_type, payload } = req.body
+  
+  if (!agent || !event_type) {
+    return res.status(400).json({ error: 'Missing required fields' })
+  }
   
   try {
     const { data, error } = await supabase
@@ -166,13 +263,13 @@ app.post('/api/events', async (req, res) => {
         {
           agent,
           event_type,
-          payload,
+          payload: payload || {},
           timestamp: new Date().toISOString()
         }
       ])
       .select()
     
-    if (error) throw error
+    if (error) throw new Error(error.message)
     
     broadcast({
       type: 'event',
@@ -184,137 +281,105 @@ app.post('/api/events', async (req, res) => {
     
     res.json({ ok: true, data: data?.[0] })
   } catch (err: any) {
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Create event:', err.message)
+    res.status(500).json({ error: 'Failed to create event' })
   }
 })
 
-// WebSocket handlers
-wss.on('connection', (ws) => {
-  console.log('✅ Client connected')
-  
-  ws.send(JSON.stringify({
-    type: 'initial-state',
-    agents: agentState,
-    costs: costData,
-    timestamp: new Date().toISOString()
-  }))
-  
-  ws.on('message', (data: string) => {
-    try {
-      const msg = JSON.parse(data)
-      console.log('📨 Message from client:', msg.type)
-      
-      if (msg.type === 'agent-state-update') {
-        agentState = msg.payload
-        broadcast({
-          type: 'agent-state',
-          payload: agentState,
-          timestamp: new Date().toISOString()
-        })
-      }
-      
-      if (msg.type === 'event') {
-        broadcast({
-          type: 'event',
-          ...msg,
-          timestamp: new Date().toISOString()
-        })
-      }
-    } catch (err) {
-      console.error('Parse error:', err)
-    }
-  })
-  
-  ws.on('error', (err: any) => {
-    console.error('❌ WebSocket error:', err.message)
-  })
-  
-  ws.on('close', () => {
-    console.log('🔌 Client disconnected')
-  })
-})
-
-// Broadcast to all connected clients
-function broadcast(data: any) {
-  wss.clients.forEach((client) => {
-    if (client.readyState === 1) { // WebSocket.OPEN
-      client.send(JSON.stringify(data))
+// Broadcast to all connected clients with error handling
+function broadcast(data: BroadcastMessage) {
+  const msg = JSON.stringify(data)
+  wsClients.forEach((client: WebSocket) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg, (err?: Error) => {
+        if (err) {
+          console.error('[WS] Broadcast error:', err.message)
+          wsClients.delete(client)
+        }
+      })
     }
   })
 }
 
-// Supabase Realtime Subscriptions
+// ============ SUPABASE REALTIME SUBSCRIPTIONS ============
 async function subscribeToRealtimeEvents() {
-  console.log('🔗 Initializing Supabase realtime subscriptions...')
+  console.log('[REALTIME] Initializing subscriptions...')
   
   try {
+    // Handoffs channel
     supabase
-      .channel('public:agent_handoffs')
+      .channel('agent_handoffs_changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'agent_handoffs' },
         (payload: any) => {
-          console.log('🔄 Handoff event:', payload.eventType)
+          console.log(`[REALTIME] Handoff ${payload.eventType}`)
           broadcast({
             type: 'handoff',
-            payload: payload.new || payload.old,
+            event: payload.eventType,
+            data: payload.new || payload.old,
             timestamp: new Date().toISOString()
           })
         }
       )
       .subscribe()
 
+    // Events channel
     supabase
-      .channel('public:agent_events')
+      .channel('agent_events_changes')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'agent_events' },
         (payload: any) => {
-          console.log('📡 Agent event:', payload.new.event_type)
+          console.log(`[REALTIME] Event: ${payload.new.event_type}`)
           broadcast({
             type: 'event',
-            payload: payload.new,
+            data: payload.new,
             timestamp: new Date().toISOString()
           })
         }
       )
       .subscribe()
 
+    // Agent state channel
     supabase
-      .channel('public:agent_state')
+      .channel('agent_state_changes')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'agent_state' },
         (payload: any) => {
-          console.log('🤖 Agent state update:', payload.new.agent)
+          console.log(`[REALTIME] Agent state: ${payload.new.agent}`)
           broadcast({
             type: 'agent-state',
-            payload: payload.new,
+            data: payload.new,
             timestamp: new Date().toISOString()
           })
         }
       )
       .subscribe()
     
-    console.log('✨ Supabase realtime subscriptions active')
+    console.log('[REALTIME] ✅ All subscriptions active')
   } catch (err: any) {
-    console.error('⚠️  Realtime subscription error:', err.message)
+    console.error('[ERROR] Realtime subscription:', err.message)
+    // Retry after 5 seconds
+    setTimeout(subscribeToRealtimeEvents, 5000)
   }
 }
 
-// Cost analytics endpoints
-app.get('/api/costs/breakdown', async (req, res) => {
+// ============ COST ANALYTICS ============
+app.get('/api/costs/breakdown', async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000)
+  
   try {
     const { data: events, error } = await supabase
       .from('agent_events')
       .select('agent, cost, tokens, created_at')
       .order('created_at', { ascending: false })
-      .limit(1000)
+      .limit(limit)
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
 
     const breakdown: Record<string, any> = {}
-
     events?.forEach((event: any) => {
       if (!breakdown[event.agent]) {
         breakdown[event.agent] = {
@@ -329,7 +394,6 @@ app.get('/api/costs/breakdown', async (req, res) => {
       breakdown[event.agent].totalCost += event.cost || 0
       breakdown[event.agent].tokenCount += event.tokens || 0
       breakdown[event.agent].requestCount += 1
-      breakdown[event.agent].lastUpdate = event.created_at
     })
 
     Object.values(breakdown).forEach((agent: any) => {
@@ -338,23 +402,23 @@ app.get('/api/costs/breakdown', async (req, res) => {
 
     res.json(Object.values(breakdown))
   } catch (err: any) {
-    console.error('Cost breakdown error:', err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Cost breakdown:', err.message)
+    res.status(500).json({ error: 'Failed to fetch cost breakdown' })
   }
 })
 
-app.get('/api/costs/history', async (req, res) => {
+app.get('/api/costs/history', async (req: Request, res: Response) => {
+  const hours = Math.min(parseInt(req.query.hours as string) || 24, 720)
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+  
   try {
-    const hours = parseInt(req.query.hours as string) || 24
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
-
     const { data: events, error } = await supabase
       .from('agent_events')
       .select('agent, cost, created_at')
       .gte('created_at', since)
       .order('created_at', { ascending: true })
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
 
     const history = events?.map((event: any) => ({
       timestamp: new Date(event.created_at).toLocaleTimeString(),
@@ -364,42 +428,53 @@ app.get('/api/costs/history', async (req, res) => {
 
     res.json(history)
   } catch (err: any) {
-    console.error('Cost history error:', err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Cost history:', err.message)
+    res.status(500).json({ error: 'Failed to fetch cost history' })
   }
 })
 
-app.get('/api/costs/total', async (req, res) => {
+app.get('/api/costs/total', async (req: Request, res: Response) => {
   try {
     const { data: events, error } = await supabase
       .from('agent_events')
       .select('cost')
+      .limit(10000)
 
-    if (error) throw error
+    if (error) throw new Error(error.message)
 
     const totalCost = events?.reduce((sum: number, e: any) => sum + (e.cost || 0), 0) || 0
-
     res.json({ totalCost })
   } catch (err: any) {
-    console.error('Total cost error:', err.message)
-    res.status(500).json({ error: err.message })
+    console.error('[ERROR] Total cost:', err.message)
+    res.status(500).json({ error: 'Failed to fetch total cost' })
   }
 })
 
+// ============ SERVER STARTUP ============
 subscribeToRealtimeEvents()
 
-// Start server
 server.listen(WS_PORT, () => {
   console.log(`
-🚀 Mission Control Alpha Backend
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${'━'.repeat(50)}
+🚀 NexAI Agent Floor 3D — Mission Control
+${'━'.repeat(50)}
 📡 WebSocket: ws://localhost:${WS_PORT}/ws
-🌐 REST API: http://localhost:${WS_PORT}/api
+🌐 REST API: http://localhost:${WS_PORT}
 🏥 Health: http://localhost:${WS_PORT}/api/health
-✨ Supabase Realtime: ENABLED
-🎯 Project: aybxrgvvwpknkoqrevqa
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  `)
+🗄️  Supabase: ${SUPABASE_URL}
+🔐 CORS: ${ALLOWED_ORIGINS.join(' | ')}
+${'━'.repeat(50)}
+`)
+})
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n[SHUTDOWN] Closing connections...')
+  wss.clients.forEach((ws: WebSocket) => ws.close())
+  server.close(() => {
+    console.log('[SHUTDOWN] ✅ Server stopped')
+    process.exit(0)
+  })
 })
 
 export default server
