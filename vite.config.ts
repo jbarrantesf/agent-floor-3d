@@ -15,6 +15,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'app.js',
+        format: 'es'
+      }
+    }
+  },
+  define: {
+    'process.env': JSON.stringify(process.env),
+    'global': 'globalThis'
   }
 })
