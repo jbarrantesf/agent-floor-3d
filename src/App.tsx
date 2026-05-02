@@ -18,8 +18,9 @@ export default function App() {
   const [wsConnected, setWsConnected] = useState(false)
   const [costAnalyticsOpen, setCostAnalyticsOpen] = useState(false)
   const [supabaseConnected, setSupabaseConnected] = useState(false)
-  
-  console.log('🔍 App.tsx render — costAnalyticsOpen:', costAnalyticsOpen)
+  const [mobileTab, setMobileTab] = useState<'agents' | 'controls' | 'events'>('controls')
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
   const [agentStates, setAgentStates] = useState<{
     hermes: 'idle' | 'running' | 'error'
     orbit: 'idle' | 'running' | 'error'
@@ -32,36 +33,47 @@ export default function App() {
     subagent2: 'idle'
   })
 
+  // ==================== RESPONSIVE DETECTION ====================
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // ==================== WEBSOCKET CONNECTION ====================
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001/ws'
+    const wsUrl = import.meta.env.VITE_WS_URL || 'wss://agent-floor-3d.loca.lt/ws'
     let ws: WebSocket | null = null
-    let reconnectTimer: ReturnType<typeof setTimeout>
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let mounted = true
 
     const connect = () => {
+      if (!mounted) return
       try {
         ws = new WebSocket(wsUrl)
 
         ws.onopen = () => {
-          console.log('✅ WebSocket connected')
+          if (!mounted) return
+          console.log('[WS] Connected')
           setWsConnected(true)
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'request-state' }))
-          }
         }
 
-        ws.onerror = (e) => {
-          console.error('❌ WebSocket error:', e)
+        ws.onerror = (e: Event) => {
+          console.error('[WS] Error:', e)
           setWsConnected(false)
         }
 
         ws.onclose = () => {
-          console.log('🔌 WebSocket disconnected, reconnecting...')
+          if (!mounted) return
+          console.log('[WS] Disconnected, retrying...')
           setWsConnected(false)
           reconnectTimer = setTimeout(connect, 3000)
         }
 
-        ws.onmessage = (e) => {
+        ws.onmessage = (e: MessageEvent) => {
+          if (!mounted) return
           try {
             const data = JSON.parse(e.data)
             if (data.type === 'initial-state') {
@@ -72,14 +84,14 @@ export default function App() {
               setCosts(data.payload)
             }
             if (data.type === 'agent-state') {
-              setAgentStates(data.payload)
+              setAgentStates(prev => ({ ...prev, ...data.payload }))
             }
           } catch (err) {
-            console.error('Parse error:', err)
+            // Silent
           }
         }
       } catch (e) {
-        console.error('Failed to create WebSocket:', e)
+        console.error('[WS] Failed to create:', e)
         setWsConnected(false)
         reconnectTimer = setTimeout(connect, 3000)
       }
@@ -88,6 +100,7 @@ export default function App() {
     connect()
 
     return () => {
+      mounted = false
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close()
@@ -95,13 +108,10 @@ export default function App() {
     }
   }, [])
 
-  // NOTE: Polling removed. WebSocket + Supabase realtime are the source of truth.
-  // This eliminates redundant requests and keeps state in sync via push model.
-
   // ==================== SUPABASE REALTIME SUBSCRIPTIONS ====================
   useEffect(() => {
     if (!supabaseClient) {
-      console.warn('⚠️ Supabase client not configured')
+      setSupabaseConnected(false)
       return
     }
 
@@ -113,200 +123,242 @@ export default function App() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'agent_events' },
         (payload: any) => {
-          console.log('📨 New event:', payload.new.event_type)
+          console.log('[SUPABASE] New event:', payload.new.event_type)
           setEvents((prev) => [payload.new, ...prev].slice(0, 20))
         }
       )
-      .subscribe()
+      .subscribe((status: string) => {
+        console.log(`[SUPABASE] Status: ${status}`)
+        setSupabaseConnected(status === 'SUBSCRIBED')
+      })
 
     return () => {
-      supabaseClient.removeChannel(eventsChannel)
+      eventsChannel.unsubscribe()
     }
   }, [])
+
+  // API base URL
+  const apiBase = import.meta.env.VITE_API_URL || 'https://agent-floor-3d.loca.lt'
 
   return (
     <div className="h-screen w-screen flex flex-col bg-black overflow-hidden">
       {/* HEADER */}
-      <div className="bg-gradient-to-r from-cyan-900 to-purple-900 p-4 border-b border-cyan-500/30">
-        <h1 className="text-3xl font-bold text-cyan-400">
-          🚀 Agent Floor 3D — Mission Control Alpha
+      <div className="bg-gradient-to-r from-cyan-900 to-purple-900 px-3 md:px-4 py-2 md:py-3 border-b border-cyan-500/30">
+        <h1 className="text-lg md:text-3xl font-bold text-cyan-400">
+          🚀 Mission Control
         </h1>
-        <p className="text-xs text-gray-400 mt-1">Real-time Multi-Agent Orchestration Platform</p>
+        <p className="text-xs text-gray-400 mt-0.5 md:mt-1">Agent Orchestration</p>
       </div>
 
-      {/* MAIN LAYOUT: 3D Floor + Right Sidebar */}
-      <div style={{ flex: 1, display: 'flex', gap: '1rem', padding: '1rem', overflow: 'hidden', height: '100%' }}>
-        {/* 3D FLOOR (70% width) */}
-        <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-          <Agent3DFloor 
+      {/* MAIN LAYOUT */}
+      <div className="flex-1 flex flex-col md:flex-row gap-3 md:gap-4 p-2 md:p-4 overflow-hidden">
+        {/* 3D SCENE - ALWAYS TOP/FULL ON DESKTOP */}
+        <div className="w-full md:flex-1 h-1/2 md:h-full flex flex-col min-h-0">
+          <Agent3DFloor
             agents={agentStates}
             costs={costs}
             handoffs={[
               { from: 'hermes', to: 'orbit', active: agentStates.hermes === 'running' && agentStates.orbit === 'running' }
             ]}
           />
-          
-          {/* MINI STATS BELOW 3D */}
-          <div className="grid grid-cols-4 gap-2 bg-slate-900/50 p-4 rounded border border-slate-800">
+
+          {/* STATS BAR */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 md:gap-2 bg-gradient-to-r from-slate-900 to-slate-800 p-2 md:p-3 rounded border border-slate-700 text-xs md:text-sm flex-shrink-0">
             <div className="text-center">
-              <p className="text-xs text-gray-400">WebSocket</p>
-              <p className={`text-sm font-bold ${wsConnected ? 'text-green-500' : 'text-red-500'}`}>
-                {wsConnected ? '🟢 LIVE' : '🔴 OFFLINE'}
+              <p className="text-gray-400 text-xs hidden md:block">WebSocket</p>
+              <p className={`font-bold flex items-center justify-center gap-1 ${
+                wsConnected ? 'text-green-400' : 'text-red-500'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="hidden md:inline">{wsConnected ? 'LIVE' : 'OFF'}</span>
               </p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-gray-400">Supabase</p>
-              <p className={`text-sm font-bold ${supabaseConnected ? 'text-green-500' : 'text-red-500'}`}>
-                {supabaseConnected ? '🟢 CONNECTED' : '🔴 OFFLINE'}
+              <p className="text-gray-400 text-xs hidden md:block">Supabase</p>
+              <p className={`font-bold flex items-center justify-center gap-1 ${
+                supabaseConnected ? 'text-green-400' : 'text-red-500'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${supabaseConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="hidden md:inline">{supabaseConnected ? 'OK' : 'OFF'}</span>
               </p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-gray-400">Hermes Cost</p>
-              <p className="text-sm font-bold text-cyan-400">${costs.hermes.toFixed(4)}</p>
+              <p className="text-gray-400 text-xs">Hermes</p>
+              <p className="font-bold text-cyan-400">${costs.hermes?.toFixed(3) || '0.00'}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-gray-400">ORBIT Cost</p>
-              <p className="text-sm font-bold text-purple-400">${costs.orbit.toFixed(4)}</p>
+              <p className="text-gray-400 text-xs">ORBIT</p>
+              <p className="font-bold text-purple-400">${costs.orbit?.toFixed(3) || '0.00'}</p>
             </div>
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR (30% width) */}
-        <div className="w-[30%] flex flex-col gap-4 bg-slate-900/50 p-4 rounded border border-slate-800 overflow-y-auto">
-          {/* AGENT STATES */}
-          <div>
-            <h3 className="text-sm font-bold text-cyan-400 mb-3">Agent States</h3>
-            <div className="space-y-2">
-              {Object.entries(agentStates).map(([agent, state]) => (
-                <div key={agent} className="flex items-center justify-between p-2 bg-black/50 rounded">
-                  <p className="text-xs font-mono text-gray-300 capitalize">{agent}</p>
-                  <span className={`px-2 py-1 text-xs font-bold rounded border border-slate-700 ${
-                    state === 'running' ? 'bg-green-500/30 text-green-300' :
-                    state === 'error' ? 'bg-red-500/30 text-red-300' :
-                    state === 'idle' ? 'bg-gray-500/30 text-gray-300' :
-                    'bg-blue-500/30 text-blue-300'
-                  }`}>
-                    {String(state).toUpperCase()}
-                  </span>
-                </div>
+        {/* CONTROLS PANEL - BOTTOM ON MOBILE, RIGHT ON DESKTOP */}
+        <div className="w-full md:w-[32%] h-1/2 md:h-full flex flex-col bg-slate-900/50 rounded border border-slate-800 overflow-hidden">
+          {/* Mobile Tabs */}
+          {isMobile && (
+            <div className="flex border-b border-slate-700 flex-shrink-0">
+              {(['agents', 'controls', 'events'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  className={`flex-1 px-2 py-2 text-xs font-bold transition ${
+                    mobileTab === tab
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-slate-800 text-gray-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
               ))}
             </div>
-          </div>
+          )}
 
-          {/* CONTROL BUTTONS */}
-          <div>
-            <h3 className="text-sm font-bold text-cyan-400 mb-3">Controls</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch('http://localhost:3001/api/agents/state', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({...agentStates, hermes: 'running'})
-                    })
-                  } catch (err) {
-                    console.error('Failed to update Hermes state:', err)
-                  }
-                }}
-                className="px-3 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-bold transition disabled:opacity-50"
-              >
-                ▶️ Hermes
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch('http://localhost:3001/api/agents/state', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({...agentStates, orbit: 'running'})
-                    })
-                  } catch (err) {
-                    console.error('Failed to update ORBIT state:', err)
-                  }
-                }}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition disabled:opacity-50"
-              >
-                ▶️ ORBIT
-              </button>
-              <button
-                onClick={async () => {
-                  await fetch('http://localhost:3001/api/agents/state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({hermes: 'idle', orbit: 'idle', subagent1: 'idle', subagent2: 'idle'})
-                  })
-                }}
-                className="px-3 py-2 bg-red-600 hover:bg-red-700 rounded text-xs font-bold transition"
-              >
-                ⏹️ Reset
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    await fetch('http://localhost:3001/api/handoffs', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        from_agent: 'hermes',
-                        to_agent: 'orbit',
-                        task: { id: `task-${Date.now()}`, type: 'data_transfer', priority: 'high' },
-                        status: 'pending'
-                      })
-                    })
-                  } catch (err) {
-                    console.error('Failed to create handoff:', err)
-                  }
-                }}
-                className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-xs font-bold transition disabled:opacity-50"
-              >
-                📤 Handoff
-              </button>
-              <button
-                onClick={() => setCostAnalyticsOpen(true)}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition"
-              >
-                💰 Cost Analytics
-              </button>
-            </div>
-          </div>
-
-          {/* EVENT QUEUE */}
-          <div>
-            <h3 className="text-sm font-bold text-cyan-400 mb-3">Event Queue ({events.length})</h3>
-            <div className="space-y-1 max-h-[300px] overflow-y-auto">
-              {events.slice(-10).map((event, i) => (
-                <div key={i} className="text-xs text-gray-400 p-1 bg-black/50 rounded font-mono">
-                  <span className="text-green-400">[{event.type || 'EVENT'}]</span> {event.message || 'System event'}
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-3">
+            {/* AGENTS TAB/SECTION */}
+            {(!isMobile || mobileTab === 'agents') && (
+              <div>
+                <h3 className="text-xs md:text-sm font-bold text-cyan-400 mb-2">Agents</h3>
+                <div className="space-y-1">
+                  {Object.entries(agentStates).map(([agent, state]) => (
+                    <div key={agent} className="flex items-center justify-between p-2 bg-black/50 rounded border border-slate-700">
+                      <p className="text-xs font-mono text-gray-300 capitalize">{agent}</p>
+                      <span className={`px-2 py-1 text-xs font-bold rounded ${
+                        state === 'running' ? 'bg-green-500/30 text-green-300' :
+                        state === 'error' ? 'bg-red-500/30 text-red-300' :
+                        'bg-gray-500/30 text-gray-300'
+                      }`}>
+                        {String(state).toUpperCase()}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {events.length === 0 && (
-                <p className="text-xs text-gray-500 italic">No events yet</p>
-              )}
-            </div>
-          </div>
+              </div>
+            )}
 
-          {/* METRICS */}
-          <div>
-            <h3 className="text-sm font-bold text-cyan-400 mb-3">Metrics</h3>
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between text-gray-400">
-                <span>Total Cost:</span>
-                <span className="text-yellow-400">${(costs.hermes + costs.orbit).toFixed(4)}</span>
+            {/* CONTROLS TAB/SECTION */}
+            {(!isMobile || mobileTab === 'controls') && (
+              <div>
+                <h3 className="text-xs md:text-sm font-bold text-cyan-400 mb-2">Controls</h3>
+                <div className="grid grid-cols-2 gap-1 md:gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch(`${apiBase}/api/agents/state`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ...agentStates, hermes: 'running' })
+                        })
+                      } catch (err) {
+                        console.error('Hermes:', err)
+                      }
+                    }}
+                    className="px-2 py-2 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-bold transition"
+                  >
+                    ▶️ Hermes
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch(`${apiBase}/api/agents/state`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ...agentStates, orbit: 'running' })
+                        })
+                      } catch (err) {
+                        console.error('ORBIT:', err)
+                      }
+                    }}
+                    className="px-2 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition"
+                  >
+                    ▶️ ORBIT
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch(`${apiBase}/api/agents/state`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ hermes: 'idle', orbit: 'idle', subagent1: 'idle', subagent2: 'idle' })
+                        })
+                      } catch (err) {
+                        console.error('Reset:', err)
+                      }
+                    }}
+                    className="px-2 py-2 bg-red-600 hover:bg-red-700 rounded text-xs font-bold transition"
+                  >
+                    ⏹️ Reset
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch(`${apiBase}/api/handoffs`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            from_agent: 'hermes',
+                            to_agent: 'orbit',
+                            task: { id: `task-${Date.now()}`, type: 'data_transfer', priority: 'high' },
+                            status: 'pending'
+                          })
+                        })
+                      } catch (err) {
+                        console.error('Handoff:', err)
+                      }
+                    }}
+                    className="px-2 py-2 bg-green-600 hover:bg-green-700 rounded text-xs font-bold transition"
+                  >
+                    📤 HO
+                  </button>
+                  <button
+                    onClick={() => setCostAnalyticsOpen(true)}
+                    className="px-2 py-2 bg-amber-600 hover:bg-amber-700 rounded text-xs font-bold transition col-span-2"
+                  >
+                    💰 Analytics
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between text-gray-400">
-                <span>Uptime:</span>
-                <span className="text-green-400">100%</span>
+            )}
+
+            {/* EVENTS TAB/SECTION */}
+            {(!isMobile || mobileTab === 'events') && (
+              <div>
+                <h3 className="text-xs md:text-sm font-bold text-cyan-400 mb-2">Events ({events.length})</h3>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {events.slice(-8).map((event: any, i: number) => (
+                    <div key={i} className="text-xs text-gray-400 p-1.5 bg-black/50 rounded font-mono border-l-2 border-cyan-500">
+                      <span className="text-green-400">[{event.event_type || 'E'}]</span>
+                      <span className="text-gray-500 ml-1">{event.agent || 'sys'}</span>
+                    </div>
+                  ))}
+                  {events.length === 0 && (
+                    <p className="text-xs text-gray-500 italic">Waiting...</p>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between text-gray-400">
-                <span>Throughput:</span>
-                <span className="text-cyan-400">{events.length} evt/s</span>
+            )}
+
+            {/* Summary on Desktop */}
+            {!isMobile && (
+              <div className="pt-2 border-t border-slate-700">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-center p-2 bg-black/50 rounded">
+                    <p className="text-gray-400">Total</p>
+                    <p className="text-yellow-400 font-bold">${(costs.hermes + costs.orbit).toFixed(4)}</p>
+                  </div>
+                  <div className="text-center p-2 bg-black/50 rounded">
+                    <p className="text-gray-400">Q</p>
+                    <p className="text-cyan-400 font-bold">{events.length}</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Cost Analytics Modal */}
       <CostAnalytics isOpen={costAnalyticsOpen} onClose={() => setCostAnalyticsOpen(false)} />
     </div>
   )
