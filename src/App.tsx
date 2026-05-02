@@ -16,8 +16,10 @@ export default function App() {
   const [events, setEvents] = useState<any[]>([])
   const [costs, setCosts] = useState({ hermes: 0.0042, orbit: 0.0018 })
   const [wsConnected, setWsConnected] = useState(false)
-  const [supabaseConnected, setSupabaseConnected] = useState(false)
   const [costAnalyticsOpen, setCostAnalyticsOpen] = useState(false)
+  const [supabaseConnected, setSupabaseConnected] = useState(false)
+  
+  console.log('🔍 App.tsx render — costAnalyticsOpen:', costAnalyticsOpen)
   const [agentStates, setAgentStates] = useState({
     hermes: 'idle',
     orbit: 'idle',
@@ -257,7 +259,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setCostAnalyticsOpen(true)}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition\"
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded text-xs font-bold transition"
               >
                 💰 Cost Analytics
               </button>
