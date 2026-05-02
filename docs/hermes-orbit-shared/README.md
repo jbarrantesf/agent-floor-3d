@@ -4,201 +4,258 @@
 
 ---
 
-## 📋 ACTIVE PROJECTS
+## 🎯 START HERE
 
-### 🚀 Phase 1: Task Delegation Architecture (May 2026)
-**Status:** ✅ READY FOR SUPABASE DEPLOYMENT  
-**Owner:** Hermes (planning) + ORBIT (implementation)  
-**Location:** `/docs/hermes-orbit-shared/phase1-task-delegation/`
+**If you're new:** Open [HERMES_MEMORY.md](./HERMES_MEMORY.md) first (15 min read)
+- Understand how Hermes thinks
+- Learn the operating principles
+- See ORBIT's role in the system
 
-**Quick Links:**
-- 📖 [README](./docs/hermes-orbit-shared/phase1-task-delegation/README.md) — Start here
-- ⚡ [Quick Reference](./docs/hermes-orbit-shared/phase1-task-delegation/QUICK_REFERENCE.md) — 1-pager
-- 📊 [Executive Summary](./docs/hermes-orbit-shared/phase1-task-delegation/EXECUTIVE_SUMMARY.md) — Vision + roadmap
-- 🗄️ [SQL Schema](./docs/hermes-orbit-shared/phase1-task-delegation/PHASE1_SQL_SCHEMA.sql) — Copy-paste to Supabase
-- 📝 [Deployment Guide](./docs/hermes-orbit-shared/phase1-task-delegation/PHASE1_DEPLOYMENT.md) — Step-by-step (10 min)
-- 🏗️ [Architecture](./docs/hermes-orbit-shared/phase1-task-delegation/task-delegation-architecture.md) — Full design
-- 🎨 [Visual Flows](./docs/hermes-orbit-shared/phase1-task-delegation/task-delegation-visual.md) — Diagrams
-- 💻 [Code Reference](./docs/hermes-orbit-shared/phase1-task-delegation/task-delegation-code.md) — TypeScript
+**If you're deploying Phase 1:** Open [phase1-task-delegation/](./phase1-task-delegation/)
+- Copy SQL schema
+- Run verification queries
+- Confirm deployment
 
----
-
-## 🎯 ROADMAP (4 Weeks)
-
-```
-PHASE 1 (May 2) ............ ✅ SQL Schema READY
-PHASE 2 (May 3-4) ......... 📋 Hermes TaskManager
-PHASE 3 (May 5-6) ......... 📋 ORBIT TaskQueue
-PHASE 4 (May 7-8) ......... 📋 Dashboard + 3D
-PHASE 5 (May 9+) .......... 📋 Testing + Production
-
-Total: 33 hours, $2.70
-```
+**If you're executing tasks (ORBIT):** Open [phase1-task-delegation/ORBIT_BRIEFING.md](./phase1-task-delegation/ORBIT_BRIEFING.md)
+- See your specific role
+- Understand the timeline
+- Know what's coming next
 
 ---
 
-## 📊 DECISIONS CONFIRMED
+## 📂 FOLDER STRUCTURE
 
 ```
-✅ ORBIT: Full executor (Git, terminal, Vercel)
-✅ Subagents: Always via ORBIT
-✅ Timeout: 5 minutes
-✅ Queue: Priority-based
-✅ Alerts: Telegram
-```
+hermes-orbit-shared/
+│
+├── 🤖 HERMES_MEMORY.md ................. Operating context (read first!)
+│   └─ Decision rules, cost mindset, relationship with ORBIT
+│   └─ José's profile, security rules, tech stack
+│   └─ WHO I AM and HOW I OPERATE
+│
+└── 📦 phase1-task-delegation/
+    ├── README.md ....................... Start here for Phase 1
+    ├── QUICK_REFERENCE.md ............. 1-pager + decision matrix
+    ├── EXECUTIVE_SUMMARY.md ........... Full vision + ROI
+    ├── PHASE1_SQL_SCHEMA.sql .......... Production SQL (copy-paste)
+    ├── PHASE1_DEPLOYMENT.md ........... Deployment guide
+    ├── VERIFICATION_CHECKLIST.md ...... Copy-paste verification queries
+    ├── ORBIT_BRIEFING.md .............. ORBIT's role (read if executing)
+    ├── task-delegation-architecture.md  Full system design
+    ├── task-delegation-visual.md ...... Flows + diagrams
+    ├── task-delegation-code.md ........ TypeScript templates
+    └── SESSION_SUMMARY.md ............. What happened
 
----
-
-## 🚀 HOW TO USE THIS FOLDER
-
-### For Hermes (Orchestrator)
-1. Plan and design new features
-2. Document architecture in `/docs/hermes-orbit-shared/`
-3. Create implementation guides
-4. Monitor ORBIT's execution
-5. Aggregate results and metrics
-
-### For ORBIT (Executor)
-1. Pull latest from `/docs/hermes-orbit-shared/`
-2. Read Hermes's design documents
-3. Implement Phase X according to spec
-4. Push code to production
-5. Report metrics and status back
-6. Update documentation with results
-
-### For José (Decision Maker)
-1. Review Executive Summaries
-2. Confirm critical decisions (gates)
-3. Approve Phase X → Phase X+1 transitions
-4. Monitor 3D floor for real-time progress
-
----
-
-## 📁 FOLDER STRUCTURE
-
-```
-docs/
-└─ hermes-orbit-shared/
-   └─ phase1-task-delegation/
-      ├─ README.md ........................... Navigation
-      ├─ QUICK_REFERENCE.md ................. 1-pager
-      ├─ EXECUTIVE_SUMMARY.md .............. Vision
-      ├─ PHASE1_SQL_SCHEMA.sql ............. Production SQL
-      ├─ PHASE1_DEPLOYMENT.md .............. How to deploy
-      ├─ task-delegation-architecture.md ... Design
-      ├─ task-delegation-visual.md ......... Flows & diagrams
-      ├─ task-delegation-code.md ........... Code reference
-      └─ SESSION_SUMMARY.md ................ Session recap
 ```
 
 ---
 
-## ⚡ QUICK START
+## 👥 WHO READS WHAT?
 
-**Deploy Phase 1 SQL (10 minutes):**
-
-```bash
-# 1. Open Supabase SQL Editor
-https://app.supabase.com/project/aybxrgvvwpknkoqrevqa/sql/new
-
-# 2. Copy SQL
-cat docs/hermes-orbit-shared/phase1-task-delegation/PHASE1_SQL_SCHEMA.sql | pbcopy
-
-# 3. Paste & Run in Supabase UI
-
-# 4. Verify
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public'
-AND table_name IN ('tasks', 'task_events', 'agent_capacity', 'cost_daily_summary');
+### 🎯 JOSÉ (Decision maker)
+```
+1. HERMES_MEMORY.md (15 min) ......... Understand how I think
+2. phase1-task-delegation/EXECUTIVE_SUMMARY.md ... Full vision
+3. phase1-task-delegation/PHASE1_DEPLOYMENT.md ... Deploy guide
+4. phase1-task-delegation/VERIFICATION_CHECKLIST.md .... Verify
 ```
 
-Expected: 4 rows ✅
+**Your job:** Approve/reject options. Deploy Phase 1 SQL (10 min).
 
 ---
 
-## 📊 STATUS DASHBOARD
-
-| Phase | Status | Owner | ETA | Docs |
-|-------|--------|-------|-----|------|
-| Phase 1 | ✅ READY | Hermes | Today | [Phase 1](./docs/hermes-orbit-shared/phase1-task-delegation/) |
-| Phase 2 | 📋 PLAN | ORBIT | May 3 | Coming soon |
-| Phase 3 | 📋 PLAN | ORBIT | May 5 | Coming soon |
-| Phase 4 | 📋 PLAN | ORBIT | May 7 | Coming soon |
-| Phase 5 | 📋 PLAN | Both | May 9 | Coming soon |
-
----
-
-## 🔗 RELATED REPOSITORIES
-
-- **Agent Floor 3D:** https://github.com/jbarrantesf/agent-floor-3d
-- **NexAI Mission Board:** https://github.com/jbarrantesf/nexai-mission-board
-- **Supabase:** https://app.supabase.com/project/aybxrgvvwpknkoqrevqa
-
----
-
-## 📞 COMMUNICATION PROTOCOL
-
-**For new documents:**
-1. Create file in `/docs/hermes-orbit-shared/phase-X/`
-2. Push to GitHub
-3. Notify via Telegram with link
-4. Tag @Hermes or @ORBIT as needed
-
-**For questions/feedback:**
-1. Update document with comment block
-2. Push to GitHub
-3. Reference in Telegram thread
-4. Discuss and resolve
-5. Remove comment blocks when done
-
-**For production decisions:**
-1. José reviews in this folder
-2. Confirms via Telegram
-3. Proceed with implementation
-4. Report back in GitHub
-
----
-
-## ✨ CURRENT PRIORITY
-
-**🚀 PHASE 1 DEPLOYMENT**
-
-José needs to:
-1. Open Supabase SQL Editor
-2. Copy SQL schema from `PHASE1_SQL_SCHEMA.sql`
-3. Paste & execute
-4. Verify 4 tables created
-5. Confirm: "Phase 1 deployed ✅"
-
-Then Hermes starts Phase 2 implementation.
-
----
-
-## 📈 SUCCESS METRICS
-
+### 🤖 ORBIT (Executor)
 ```
-Before (Manual):
-- 30% duplicate work
-- 5 minute communication lag
-- 1h/week cost accounting
-- No real-time visibility
-
-After (Automated):
-- 0% duplicate work ✅
-- <100ms latency ✅
-- 0h cost accounting ✅
-- Real-time 3D visualization ✅
-- +200% throughput ✅
+1. HERMES_MEMORY.md (15 min) ......... How I operate + your role
+2. phase1-task-delegation/ORBIT_BRIEFING.md ... Your specific job
+3. phase1-task-delegation/task-delegation-architecture.md ... System design
+4. phase1-task-delegation/task-delegation-code.md .... Code templates
 ```
 
----
-
-**Last Updated:** 2026-05-02 08:45 AM  
-**Next Review:** 2026-05-03 (Phase 1 verification)  
-**Status:** ACTIVE - Ready for deployment  
+**Your job:** Wait for Phase 1 deployment → Begin Phase 3 prep.
 
 ---
 
-**Questions?** Check the relevant Phase README or message in Telegram.
+### 🧠 HERMES (Orchestrator - me)
+```
+1. phase1-task-delegation/README.md .. Navigation + overview
+2. phase1-task-delegation/EXECUTIVE_SUMMARY.md ... Full vision
+3. phase1-task-delegation/task-delegation-architecture.md ... Design
+4. phase1-task-delegation/task-delegation-code.md .... Implement Phase 2
+```
 
-🚀 **Let's build NexAI's nervous system!**
+**My job:** Coordinate, document, optimize. Start Phase 2 tomorrow.
+
+---
+
+## 📊 DOCUMENT MATRIX
+
+| Document | Size | Time | For | Purpose |
+|----------|------|------|-----|---------|
+| HERMES_MEMORY.md | 11 KB | 15 min | Everyone | Operating context |
+| QUICK_REFERENCE.md | 6.7 KB | 5 min | José | 5 decisions snapshot |
+| EXECUTIVE_SUMMARY.md | 6.6 KB | 10 min | José, Hermes | Vision + ROI |
+| PHASE1_DEPLOYMENT.md | 6.7 KB | 5 min | José | Deploy steps |
+| VERIFICATION_CHECKLIST.md | 7.9 KB | 15 min | José | Verify deployment |
+| ORBIT_BRIEFING.md | 8.5 KB | 10 min | ORBIT | Your role |
+| task-delegation-architecture.md | 18 KB | 20 min | ORBIT, Hermes | System design |
+| task-delegation-visual.md | 27 KB | 20 min | Reference | Flows + diagrams |
+| task-delegation-code.md | 23 KB | 30 min | ORBIT, Hermes | TypeScript code |
+| SESSION_SUMMARY.md | 8.8 KB | 10 min | Reference | What happened |
+| README.md (this) | 5.7 KB | 5 min | Everyone | Navigation |
+
+**Total:** 12 documents, 160 KB, 4,698 lines
+
+---
+
+## 🚀 IMMEDIATE ACTIONS
+
+### ✅ TODAY (May 2)
+- [ ] José: Read HERMES_MEMORY.md (15 min)
+- [ ] José: Read QUICK_REFERENCE.md (5 min)
+- [ ] José: Copy Phase1 SQL from PHASE1_SQL_SCHEMA.sql
+- [ ] José: Paste in Supabase → Run (1 min)
+- [ ] José: Verify using VERIFICATION_CHECKLIST.md (10 min)
+- [ ] José: Confirm "Phase 1 deployed ✅"
+
+**Total: 30 minutes**
+
+### 🔄 TOMORROW (May 3+)
+- [ ] ORBIT: Read HERMES_MEMORY.md (understand how I work)
+- [ ] ORBIT: Read ORBIT_BRIEFING.md (your specific role)
+- [ ] Hermes: Start Phase 2 implementation (TaskManager)
+- [ ] Timeline advances (Phase 2 → Phase 3 → Phase 4 → Phase 5)
+
+---
+
+## 🎯 5 CRITICAL DECISIONS (Locked)
+
+```
+✅ 1. ORBIT = Full executor (Git + Vercel + Supabase access)
+✅ 2. Subagents routed through ORBIT (not direct from Hermes)
+✅ 3. Task timeout = 5 minutes (recommended, approved)
+✅ 4. Queue = Priority-based (not FIFO)
+✅ 5. Alerts = Telegram when overload (not silent)
+```
+
+See QUICK_REFERENCE.md for full decision matrix.
+
+---
+
+## 📈 TIMELINE (33 hours, $2.70, 4 weeks)
+
+```
+MAY 2 (TODAY):
+└─ Phase 1: SQL schema deployment ✅ READY
+
+MAY 3-4:
+└─ Phase 2: Hermes TaskManager implementation (4h, $0.30)
+
+MAY 5-6:
+└─ Phase 3: ORBIT TaskQueue implementation (5h, $0.40)
+
+MAY 7-8:
+└─ Phase 4: Dashboard + 3D visualization (13h, $1.00)
+
+MAY 9+:
+└─ Phase 5: Testing, hardening, go live (5h, $0.50)
+```
+
+---
+
+## 💡 KEY PRINCIPLES
+
+```
+🤖 Automation: If it happens 3x, we automate it (Rule 3x)
+💰 Cost: Every decision shows dollars + time saved
+🎯 Proactivity: Flag problems before asked
+🔄 Reversibility: Small decisions I make; big ones need José
+📊 Transparency: All options show trade-offs
+🤝 Partnership: ORBIT and I are peers (different roles = equal respect)
+```
+
+See HERMES_MEMORY.md for full operating context.
+
+---
+
+## 🔐 SECURITY
+
+✅ All credentials in `.env` (never in chat)  
+✅ No API keys in documentation  
+✅ All secrets git-ignored  
+✅ RLS policies in place (Supabase)  
+✅ Audit trail enabled (PostgreSQL)  
+
+---
+
+## 🎊 STATUS
+
+```
+Architecture .............. ✅ COMPLETE
+Documentation ............. ✅ COMPLETE (12 files, 160 KB)
+SQL Schema ................ ✅ PRODUCTION-READY
+Deployment Guide .......... ✅ COPY-PASTE READY
+Verification Procedures ... ✅ COPY-PASTE READY
+Operating Context ......... ✅ TRANSPARENT (HERMES_MEMORY.md)
+Timeline .................. ✅ CLEAR (33h, $2.70, 4w)
+Decisions ................. ✅ LOCKED (5/5)
+
+STATUS: READY FOR PRODUCTION ✅
+```
+
+---
+
+## 📞 SUPPORT
+
+**Questions about:**
+- **Deployment?** → See VERIFICATION_CHECKLIST.md
+- **Architecture?** → See task-delegation-architecture.md
+- **Your role (ORBIT)?** → See ORBIT_BRIEFING.md
+- **How Hermes works?** → See HERMES_MEMORY.md
+- **Decisions locked?** → See QUICK_REFERENCE.md
+- **Anything else?** → Create GitHub Issue
+
+---
+
+## 🌐 LINKS
+
+**Phase 1 Deployment:**
+```
+https://github.com/jbarrantesf/agent-floor-3d/tree/main/docs/hermes-orbit-shared/phase1-task-delegation
+```
+
+**Live 3D Floor (Production):**
+```
+https://agent-floor-3d.vercel.app
+```
+
+**Backend Development:**
+```
+http://localhost:3001 (local only)
+```
+
+---
+
+## ✨ COLLABORATION RULES
+
+```
+1. Documentation lives in GitHub (single source of truth)
+2. No Telegram noise (use GitHub Issues for discussion)
+3. ORBIT executes (Hermes orchestrates)
+4. José decides (both report to him)
+5. All decisions documented (no verbal agreements)
+6. Code reversible (can always revert)
+7. Costs always visible (budget sacred)
+```
+
+---
+
+**Start with HERMES_MEMORY.md. Then pick your path above.**
+
+**Let's build the future of NexAI automation.** 🚀
+
+---
+
+Generated: 2026-05-02 09:20 AM  
+Last updated: 2026-05-02  
+Status: Production-ready  
