@@ -4,7 +4,6 @@
  */
 
 import { Task, TaskExecutionResult } from '../../types/task';
-import('node-fetch').catch(() => {}); // Suppress import errors in browser
 
 export class WebhookExecutor {
   async execute(task: Task): Promise<TaskExecutionResult> {
@@ -45,18 +44,8 @@ export class WebhookExecutor {
       const startTime = Date.now();
 
       try {
-        // Use native fetch if available, otherwise use node-fetch on server
-        let fetchFn: any;
-        if (typeof fetch !== 'undefined') {
-          fetchFn = fetch;
-        } else {
-          try {
-            const nodeFetch = await import('node-fetch');
-            fetchFn = nodeFetch.default;
-          } catch {
-            throw new Error('fetch is not available and node-fetch could not be loaded');
-          }
-        }
+        // Use dynamic import for fetch to ensure availability
+        const fetchFn = typeof fetch !== 'undefined' ? fetch : (await import('node-fetch')).default;
 
         const options: RequestInit = {
           method,
@@ -70,19 +59,13 @@ export class WebhookExecutor {
           options.body = typeof body === 'string' ? body : JSON.stringify(body);
         }
 
-        let controller: any;
-        if (typeof AbortController !== 'undefined') {
-          controller = new AbortController();
-        } else {
-          // Fallback for environments without AbortController
-          controller = { abort: () => {}, signal: {} };
-        }
+        const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const response = await fetchFn(url, {
           ...options,
           signal: controller.signal,
-        } as any);
+        });
 
         clearTimeout(timeoutId);
 

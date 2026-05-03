@@ -41,22 +41,17 @@ export class SqlExecutor {
       }
 
       // Execute raw SQL
-      let data: any;
-      let error: any;
-      
-      try {
-        const result = await this.supabase.rpc('execute_sql', {
-          query: sql,
-          values: values,
-        });
-        data = result.data;
-        error = result.error;
-      } catch (rpcError: any) {
+      const { data, error } = await this.supabase.rpc('execute_sql', {
+        query: sql,
+        values: values,
+      }).catch(() => {
         // Fallback: try to execute using query method if RPC fails
         // This is a limitation - actual SQL execution would need a backend endpoint
-        error = new Error('SQL execution requires backend support');
-        data = null;
-      }
+        return {
+          data: null,
+          error: new Error('SQL execution requires backend support'),
+        };
+      });
 
       if (error) {
         return {
