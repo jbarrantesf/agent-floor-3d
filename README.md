@@ -1,96 +1,64 @@
-# 🚀 NexAI Agent Floor 3D / Mission Control Alpha
+# NexAI · Agent Floor 3D
 
-Visual cockpit for **Hermes + ORBIT** orchestration in real-time.
+Interactive command floor for **NexAI Solutions CR**. Five stations on a dark industrial platform, holographic panels, work bubbles, and a profile card with a short “Pregúntale” chat.
 
-## ✨ Features (Alpha v0.1)
+The look is an original NexAI lab: metallic room, yellow/black hazard lip, green and blue holograms, stylized agents. It does not use the NVIDIA logo or any celebrity likeness.
 
-- **3D Visualization** of agents (Hermes, ORBIT, subagents) in cyberspace
-- **Real-time Cost Dashboard** (consolidated Hermes SQLite + ORBIT JSON)
-- **WebSocket Event Ticker** — handoffs, approvals, errors streaming
-- **Agent State Monitoring** (idle, running, waiting-approval, error)
-- **MCP Integration** for handoff visibility and coordination
+Older phase notes in this repo (`PHASE*.md`, `docs/hermes-orbit-shared/`) describe a previous cube-floor plan. This MVP replaces that visual. Those files are historical.
 
-## 🛠️ Tech Stack
-
-| Layer | Tech |
-|-------|------|
-| **Frontend** | React 18 + TypeScript + Three.js + @react-three/fiber |
-| **Backend** | Node.js + Express + WebSocket (`ws`) |
-| **Realtime** | Supabase subscriptions + WebSocket broadcast |
-| **Deployment** | Vercel (frontend) + Node.js (backend) |
-| **Dev Model** | Ollama `qwen2.5-coder:14b` ($0) |
-
-## 🚀 Quick Start
+## Run locally
 
 ```bash
-# Install
 npm install
-
-# Dev server (Vite @ localhost:5173)
+cp .env.example .env
+# fill VITE_SUPABASE_ANON_KEY — never commit it
 npm run dev
-
-# Build
-npm run build
-
-# Type check
-npm run type-check
 ```
 
-## 📋 Sprint Roadmap
+Open `http://localhost:5173`. The same app is served at `/agent-floor` (the host must rewrite unknown paths to `index.html`; Vite and `vercel.json` do).
 
-### **Sprint 1 (Week 1)** — Foundation ✅ IN PROGRESS
-- [x] Project structure + Git init
-- [ ] npm dependencies installed
-- [ ] Vite dev server running
-- [ ] Three.js scene rendering
-- [ ] WebSocket server basic frame
+```bash
+npm run build
+npm run test:floor
+```
 
-### **Sprint 2 (Week 2)** — Alpha UI
-- [ ] 3D agents (spheres, labels, animation)
-- [ ] Cost dashboard live update
-- [ ] Event ticker (Hermes handoffs)
-- [ ] Agent state colors (idle→green, running→yellow, etc)
-- [ ] MCP bridge for live data
+## Environment
 
-### **Sprint 3 (Week 3)** — Deploy + Polish
-- [ ] Supabase schema setup
-- [ ] Deploy to Vercel staging
-- [ ] Real Hermes ↔ ORBIT ↔ UI integration
-- [ ] Testing + docs
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_SUPABASE_URL` | yes, for live data | `https://cpsdpmekmtqevvrmahds.supabase.co` (project **aios-control-tower**) |
+| `VITE_SUPABASE_ANON_KEY` | yes, for live data | Publishable or legacy anon key. Not the service role. |
+| `VITE_SUPABASE_ACCESS_TOKEN` | no | User JWT. `agents`, `agent_tasks`, `alerts`, and `kpi_values` are protected by RLS (`authenticated` + `current_org()`). The anon key alone cannot read them. |
+| `VITE_LLM_API_KEY` | no | Enables “Pregúntale” against an OpenAI-compatible chat API. |
+| `VITE_LLM_BASE_URL` | no | Default `https://api.openai.com/v1`. |
+| `VITE_LLM_MODEL` | no | Default `gpt-4o-mini`. |
 
-## 📊 Cost Estimate
+The retired Supabase project `aybxrgvvwpknkoqrevqa` is not used.
 
-| Component | Cost |
-|-----------|------|
-| Ollama dev (local) | $0 |
-| Hermes coordination | $0.10/day (Haiku) |
-| Vercel (Alpha) | $0 (free tier) |
-| Supabase (production) | $25/month |
-| **Total** | **<$1 USD sprint** |
+If the anon key cannot read the tables, the floor shows a **sanitized snapshot from 28 Oct 2026** (agent names, roles, task titles, alerts, KPIs, aiMae config). Customer phone numbers and raw chat bodies are not in that snapshot. The top bar says **Instantánea** and explains why. A successful read says **Torre en vivo**.
 
-## 🎯 Current Status
+## Stations
 
-- **Phase:** Sprint 1 Foundation
-- **Model:** Ollama qwen2.5-coder:14b (local generation)
-- **Hermes:** anthropic/claude-haiku-4-5 (cheap coordination)
-- **Verified:** Hermes ↔ ORBIT MCP bridge functional
+| Puesto | Source when the tower has the current rows |
+| --- | --- |
+| CEO | Orbit |
+| Ejecutivo | NexAI |
+| Operaciones | Hermes |
+| aiMae | Demo badge. Copy comes from `aimae_config` when that row is readable. There is no `agents` row named aiMae. |
+| Diagnóstico | Demo badge (**DX Nova**) until an agent name maps to diagnóstico. The bubble watches open alerts. |
 
-## 📝 Development Notes
+`Secuencias` stays in the tower data but has no station. The header lists it as “Sin estación”.
 
-- All components are TypeScript-first
-- CSS: Tailwind + custom (no shadcn/ui bloat)
-- Events are JSON, compatible with Supabase realtime
-- WebSocket reconnect logic with exponential backoff
-- LOD optimization for 3D scene (keep it simple, fast)
+Click a station (or press 1–5) to focus the camera and open the card. Escape or “Vista general” returns to the orbit view. There is no walking pathfinding and no multiplayer.
 
-## 🔗 Links
+## Preview vs production
 
-- **Hermes Dashboard:** See daily costs at `agent-os/reports/daily/YYYY-MM-DD.md`
-- **ORBIT Workspace:** `~/.openclaw/workspace/`
-- **MCP Gateway:** `http://127.0.0.1:18789`
+Deploy a **protected preview** only. Do not promote this app to production and do not attach or change custom domains unless that was asked for explicitly.
 
----
+Keep Vercel Deployment Protection on. A preview URL still ships the anon key inside the browser bundle; RLS is what keeps tower rows private. Do not put a user JWT or the service role in `VITE_*`.
 
-**Built with 🚀 by Hermes + ORBIT for NexAI Solutions CR**
+How the Control Tower should link here: [INTEGRATION.md](./INTEGRATION.md).
 
-*"Visual > Manual. Realtime > Blind. Local > Cloud (when it counts)."*
+## Stack
+
+React 18, Vite, Three.js, React Three Fiber, drei. Supabase JS reads the tower. No keys belong in git.
