@@ -1,7 +1,7 @@
 {
   "name": "nexai-agent-floor-3d",
-  "version": "0.2.0",
-  "description": "NexAI Agent Floor 3D / Mission Control Alpha — Visual orchestration for Hermes + ORBIT with bilateral Supabase communication",
+  "version": "0.3.0",
+  "description": "NexAI Agent Floor 3D — interactive command floor for the AIOS control tower",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "lint": "eslint . --ext .ts,.tsx --fix",
     "setup:supabase": "bash scripts/setup-supabase.sh",
     "test": "tsx scripts/test-sprint-2-5.ts",
+    "test:floor": "tsx src/floor/assignStations.test.ts",
     "test:watch": "tsx --watch scripts/test-sprint-2-5.ts"
   },
   "dependencies": {
